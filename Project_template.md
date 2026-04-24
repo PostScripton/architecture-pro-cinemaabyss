@@ -48,53 +48,84 @@
 ## Задание 2
 
 ### 1. Proxy
-Команда КиноБездны уже выделила сервис метаданных о фильмах movies и вам необходимо реализовать бесшовный переход с применением паттерна Strangler Fig в части реализации прокси-сервиса (API Gateway), с помощью которого можно будет постепенно переключать траффик, используя фиче-флаг.
+> Команда КиноБездны уже выделила сервис метаданных о фильмах movies и вам необходимо реализовать бесшовный переход с применением паттерна Strangler Fig в части реализации прокси-сервиса (API Gateway), с помощью которого можно будет постепенно переключать траффик, используя фиче-флаг.
 
+Реализован прокси-сервис на Go (`src/microservices/proxy`) с использованием стандартного `net/http/httputil.ReverseProxy`.
 
-Реализуйте сервис на любом языке программирования в ./src/microservices/proxy.
-Конфигурация для запуска сервиса через docker-compose уже добавлена
-```yaml
-  proxy-service:
-    build:
-      context: ./src/microservices/proxy
-      dockerfile: Dockerfile
-    container_name: cinemaabyss-proxy-service
-    depends_on:
-      - monolith
-      - movies-service
-      - events-service
-    ports:
-      - "8000:8000"
-    environment:
-      PORT: 8000
-      MONOLITH_URL: http://monolith:8080
-      #монолит
-      MOVIES_SERVICE_URL: http://movies-service:8081 #сервис movies
-      EVENTS_SERVICE_URL: http://events-service:8082 
-      GRADUAL_MIGRATION: "true" # вкл/выкл простого фиче-флага
-      MOVIES_MIGRATION_PERCENT: "50" # процент миграции
-    networks:
-      - cinemaabyss-network
+Логика маршрутизации:
+- Маршруты `/api/movies` и `/api/movies/*` - единственные, где активен фиче-флаг. При `GRADUAL_MIGRATION=true` каждый запрос случайно (через `rand.Intn(100)`) уходит в `movies-service` с вероятностью `MOVIES_MIGRATION_PERCENT` процентов, остальное - в монолит.
+- Все остальные маршруты всегда проксируются в монолит.
+- При `GRADUAL_MIGRATION=false` весь трафик идёт в монолит вне зависимости от `MOVIES_MIGRATION_PERCENT`.
+
+Конфигурация загружается из переменных окружения:
+
+```
+PORT=8000
+MONOLITH_URL=http://monolith:8080
+MOVIES_SERVICE_URL=http://movies-service:8081
+EVENTS_SERVICE_URL=http://events-service:8082
+GRADUAL_MIGRATION=true
+MOVIES_MIGRATION_PERCENT=50
 ```
 
-- После реализации запустите postman тесты - они все должны быть зеленые.
-- Отправьте запросы к API Gateway:
-   ```bash
-   curl http://localhost:8000/api/movies
-   ```
-- Протестируйте постепенный переход, изменив переменную окружения MOVIES_MIGRATION_PERCENT в файле docker-compose.yml.
-
 ### 2. Kafka
- Вам как архитектуру нужно также проверить гипотезу насколько просто реализовать применение Kafka в данной архитектуре.
+> Вам как архитектуру нужно также проверить гипотезу насколько просто реализовать применение Kafka в данной архитектуре.
+> 
+> Для этого нужно сделать MVP сервис events, который будет при вызове API создавать и сам же читать сообщения в топике Kafka.
 
-Для этого нужно сделать MVP сервис events, который будет при вызове API создавать и сам же читать сообщения в топике Kafka.
+Реализован сервис `events-service` на Go (`src/microservices/events`) с использованием библиотеки `github.com/IBM/sarama`.
 
-    - Разработайте сервис на любом языке программирования с consumer'ами и producer'ами.
-    - Реализуйте простой API, при вызове которого будут создаваться события User/Payment/Movie и обрабатываться внутри сервиса с записью в лог
-    - Добавьте в docker-compose новый сервис, kafka там уже есть
+Сервис поднимает в одном процессе и producer, и consumer group. При старте consumer подписывается на все три топика и пишет каждое входящее сообщение в лог.
 
-Необходимые тесты для проверки этого API вызываются при запуске npm run test:local из папки tests/postman 
-Приложите скриншот тестов и скриншот состояния топиков Kafka http://localhost:8090 
+API:
+
+- `GET /api/events/health` - проверка работоспособности
+- `POST /api/events/user` - публикует событие в топик `user-events`
+- `POST /api/events/payment` - публикует событие в топик `payment-events`
+- `POST /api/events/movie` - публикует событие в топик `movie-events`
+
+Топики создаются автоматически при старте Kafka через `KAFKA_CREATE_TOPICS`. Consumer group `events-service-group` подписывается на все три топика и логирует каждое сообщение: топик, партицию, offset и тело.
+
+Результаты прогона локальных тестов (проходят успешно):
+
+```shell
+┌─────────────────────────┬─────────────────┬─────────────────┐
+│                         │        executed │          failed │
+├─────────────────────────┼─────────────────┼─────────────────┤
+│              iterations │               1 │               0 │
+├─────────────────────────┼─────────────────┼─────────────────┤
+│                requests │              22 │               0 │
+├─────────────────────────┼─────────────────┼─────────────────┤
+│            test-scripts │              22 │               0 │
+├─────────────────────────┼─────────────────┼─────────────────┤
+│      prerequest-scripts │               0 │               0 │
+├─────────────────────────┼─────────────────┼─────────────────┤
+│              assertions │              42 │               0 │
+├─────────────────────────┴─────────────────┴─────────────────┤
+│ total run duration: 2.7s                                    │
+├─────────────────────────────────────────────────────────────┤
+│ total data received: 9.6kB (approx)                         │
+├─────────────────────────────────────────────────────────────┤
+│ average response time: 7ms [min: 2ms, max: 39ms, s.d.: 7ms] │
+└─────────────────────────────────────────────────────────────┘
+Newman run completed!
+Total requests: 22
+Failed requests: 0
+Total assertions: 42
+Failed assertions: 0
+```
+
+Результаты Postman-тестов (проходят успешно, все зелёные):
+
+<img src="images/postman_tests_results.png" alt="Postman tests results" width="100%" />
+
+Состояние consumer groups в Kafka UI после прогона тестов:
+
+<img src="images/kafka_consumers.png" alt="Kafka consumer groups" width="100%" />
+
+Состояние топиков в Kafka UI после прогона тестов:
+
+<img src="images/kafka_topics_after_tests.png" alt="Kafka topics after tests" width="100%" />
 
 
 ## Задание 3
