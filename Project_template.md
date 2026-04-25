@@ -340,7 +340,26 @@ cat .docker/config.json | base64
   Откройте логи event-service и сделайте скриншот обработки событий
 
 #### Шаг 3
-Добавьте сюда скриншота вывода при вызове https://cinemaabyss.example.com/api/movies и  скриншот вывода event-service после вызова тестов.
+
+> Добавьте сюда скриншота вывода при вызове https://cinemaabyss.example.com/api/movies и скриншот вывода event-service после вызова тестов.
+
+Вывод списка фильмов при вызове `https://cinemaabyss.example.com/api/movies`:
+
+<img src="images/k8s_movies_in_browser.png" alt="Movies list in browser" width="100%" />
+
+Логи events-service после прогона тестов:
+
+```
+2026-04-25T00:35:05.837831840Z 2026/04/25 00:35:05 producer connected to Kafka at [kafka:9092]
+2026-04-25T00:35:05.837873882Z 2026/04/25 00:35:05 starting events-service on port 8082
+2026-04-25T00:35:05.842605007Z 2026/04/25 00:35:05 consumer started, listening on topics: [user-events payment-events movie-events]
+2026-04-25T01:06:10.576783009Z 2026/04/25 01:06:10 [producer] published movie event to topic=movie-events payload={"payload":{"action":"viewed","movie_id":6,"title":"Test Movie Event","user_id":4},"type":"movie"}
+2026-04-25T01:06:10.611379092Z 2026/04/25 01:06:10 [consumer] topic=movie-events partition=0 offset=0 value={"payload":{"action":"viewed","movie_id":6,"title":"Test Movie Event","user_id":4},"type":"movie"}
+2026-04-25T01:06:10.705977342Z 2026/04/25 01:06:10 [producer] published user event to topic=user-events payload={"payload":{"action":"logged_in","timestamp":"2026-04-25T01:06:10.692Z","user_id":4,"username":"testuser"},"type":"user"}
+2026-04-25T01:06:10.710173342Z 2026/04/25 01:06:10 [consumer] topic=user-events partition=0 offset=0 value={"payload":{"action":"logged_in","timestamp":"2026-04-25T01:06:10.692Z","user_id":4,"username":"testuser"},"type":"user"}
+2026-04-25T01:06:10.831175175Z 2026/04/25 01:06:10 [producer] published payment event to topic=payment-events payload={"payload":{"amount":9.99,"method_type":"credit_card","payment_id":4,"status":"completed","timestamp":"2026-04-25T01:06:10.819Z","user_id":4},"type":"payment"}
+2026-04-25T01:06:10.833897384Z 2026/04/25 01:06:10 [consumer] topic=payment-events partition=0 offset=0 value={"payload":{"amount":9.99,"method_type":"credit_card","payment_id":4,"status":"completed","timestamp":"2026-04-25T01:06:10.819Z","user_id":4},"type":"payment"}
+```
 
 
 ## Задание 4
