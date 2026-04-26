@@ -426,16 +426,33 @@ helm install cinemaabyss .\src\kubernetes\helm --namespace cinemaabyss --create-
 kafka.common.InconsistentClusterIdException: The Cluster ID OkOjGPrdRimp8nkFohYkCw doesn't match stored clusterId Some(sbkcoiSiQV2h_mQpwy05zQ) in meta.properties. The broker is trying to join the wrong cluster. Configured zookeeper.connect may be wrong.
 ```
 
+То пофиксть можно так:
+
+```shell
+kubectl delete pvc --all -n cinemaabyss
+kubectl delete all --all -n cinemaabyss
+kubectl delete namespace cinemaabyss
+kubectl wait --for=delete namespace/cinemaabyss --timeout=60s
+helm install cinemaabyss ./src/kubernetes/helm --namespace cinemaabyss --create-namespace
+```
+
 Проверьте развертывание:
 ```bash
 kubectl get pods -n cinemaabyss
 minikube tunnel
 ```
 
-Потом вызовите 
-https://cinemaabyss.example.com/api/movies
-и приложите скриншот развертывания helm и вывода https://cinemaabyss.example.com/api/movies
+> Потом вызовите 
+> https://cinemaabyss.example.com/api/movies
+> и приложите скриншот развертывания helm и вывода https://cinemaabyss.example.com/api/movies
 
+Развертывание через Helm (`kubectl get pods -n cinemaabyss`):
+
+<img src="images/helm_deployment.png" alt="Helm deployment pods" width="100%" />
+
+Вывод https://cinemaabyss.example.com/api/movies:
+
+<img src="images/helm_movies_in_browser.png" alt="Movies list via Helm deployment" width="100%" />
 
 # Задание 5
 Компания планирует активно развиваться и для повышения надежности, безопасности, реализации сетевых паттернов типа Circuit Breaker и канареечного деплоя вам как архитектору необходимо развернуть istio и настроить circuit breaker для monolith и movies сервисов.
