@@ -519,6 +519,32 @@ You can see 21 for the upstream_rq_pending_overflow value which means 21 calls s
 
 Приложите скриншот работы circuit breaker'а
 
+---
+
+Результаты нагрузочного теста fortio (50 параллельных воркеров, 500 запросов):
+
+<img src="images/circuit_breaker_fortio.png" alt="Fortio circuit breaker test results" width="100%" />
+
+```
+Code 200 : 11 (2.2 %)
+Code 503 : 489 (97.8 %)
+```
+
+Circuit breaker отсёк 97.8% запросов - из 500 только 11 дошли до `movies-service`. Остальные 489 получили мгновенный 503 от envoy sidecar, не нагрузив сервис.
+
+Статистика envoy после теста (`upstream_rq_pending_overflow` - счётчик срабатываний circuit breaker):
+
+<img src="images/circuit_breaker_stats.png" alt="Circuit breaker envoy stats" width="100%" />
+
+```
+cluster.outbound|8081||movies-service.cinemaabyss.svc.cluster.local;.upstream_rq_pending_overflow: 488
+cluster.outbound|8081||movies-service.cinemaabyss.svc.cluster.local;.upstream_rq_pending_total: 12
+```
+
+`upstream_rq_pending_overflow: 488` подтверждает количество запросов, отклонённых circuit breaker'ом. `upstream_rq_pending_total: 12` - столько запросов реально попали в очередь и были отправлены к сервису.
+
+---
+
 Удаляем все
 ```bash
 istioctl uninstall --purge
