@@ -60,9 +60,9 @@ Rel(user, mobileApp, "Uses", "HTTPS")
 Rel(user, tvApp, "Uses", "HTTPS")
 
 ' --- Clients -> API Gateway ---
-Rel(webApp, apiGateway, "REST requests", "HTTPS / JSON")
-Rel(mobileApp, apiGateway, "REST requests", "HTTPS / JSON")
-Rel(tvApp, apiGateway, "REST requests", "HTTPS / JSON")
+Rel(webApp, apiGateway, "GraphQL queries", "HTTPS")
+Rel(mobileApp, apiGateway, "GraphQL queries", "HTTPS")
+Rel(tvApp, apiGateway, "GraphQL queries", "HTTPS")
 
 ' --- API Gateway -> Microservices ---
 ' Gateway validates the token via Auth Service, then proxies the request to the target service
