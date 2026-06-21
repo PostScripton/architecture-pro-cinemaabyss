@@ -91,7 +91,7 @@ GitHub Actions для непрерывной интеграции и разве�
 
 2. Запускаем сервисы с помощью Docker Compose:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 После запуска сервисы доступны:
@@ -103,14 +103,14 @@ GitHub Actions для непрерывной интеграции и разве�
 
 3. Останавливаем сервисы:
    ```bash
-   docker-compose down -v
+   docker compose down -v
    ```
 
 4. После внесения изменений рестартим:
 
    ```bash
-   docker-compose build
-   docker-compose up -d
+   docker compose build
+   docker compose up -d
    ```
 
 ### Kubernetes Deployment

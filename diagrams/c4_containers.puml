@@ -1,0 +1,99 @@
+@startuml C4_Containers
+' Level 2 — Containers
+' Zoom into our system. Show all separately deployable units:
+' microservices, frontends, databases, message broker.
+' "Container" in C4 != Docker container. It is any independently deployable unit.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Container Diagram — Cinema Abyss Platform (To-Be)
+
+' --- Users ---
+Person(user, "User", "Uses the platform to watch movies")
+
+' --- External Systems ---
+System_Ext(externalPaymentSystem, "Payment System", "Handles payments")
+System_Ext(externalContentSystemA,"Content Service A", "Provides content from this open-source service")
+System_Ext(externalContentSystemB,"Content Service B", "Provides content from this open-source service")
+System_Ext(externalRecommendationSystem,"Recommendation System", "Provides a collection of a recommended content")
+
+' --- Our Platform ---
+System_Boundary(cinemaAbyss, "Cinema Abyss Platform") {
+    ' Client applications
+    Container(webApp, "Web App", "React / TypeScript", "SPA watching movies in a browser")
+    Container(mobileApp, "Mobile App", "React Native", "Mobile application for iOS and Android")
+    Container(tvApp, "TV App", "React Native", "TV application for Android TVs")
+
+    ' Single entry point
+    Container(apiGateway, "API Gateway", "Go / GraphQL", "Single entry point with GraphQL API. Each client (Web, Mobile, TV) queries only the fields it needs. Token authentication, rate limiting")
+
+    ' Microservices
+    Container(authService, "Auth Service", "Go", "Registration, login, issuance and validation of JWT tokens. Role management")
+    Container(moviesService, "Movies Service", "Go", "Gives access to movies metadata, ratings, genres, actors, reviews")
+    Container(contentProviderService, "Content Provider Service", "Go", "A router that decides where to retrieve content from external services and other open sources")
+    Container(customContentProviderService, "Custom Content Provider Service", "Go", "The platform's own uploaded content on its servers")
+    Container(recommendationsService, "Recommendations Service", "Go", "Stores recommendations for users based on External Recommendation System")
+    Container(subscriptionsService, "Subscriptions Service", "Go", "Manages subscriptions, personal discounts")
+    Container(paymentsService, "Payments Service", "Go", "Manages transactions and delegates payment processing to External Payment System")
+
+    ' Cache
+    ContainerDb(redis, "Redis Cache", "Redis", "Caching for movies metadata, user sessions, rate limiting counters")
+
+    ' Async transport
+    Container(messageBroker, "Message Broker", "Apache Kafka", "Asynchronous event exchange between microservices")
+
+    ' Databases (one per service - Database per Service)
+    ContainerDb(contentCDN, "Content CDN", "AWS S3 via AWS CloudFront", "Movies in different resolutions, timeline tiles, posters, actors' pictures")
+    ContainerDb(authDb, "Auth DB", "PostgreSQL", "Users, password hashes, roles, refresh tokens")
+    ContainerDb(moviesDb, "Movies DB", "PostgreSQL", "Movies metadata, ratings, genres, actors, reviews")
+    ContainerDb(subscriptionsDb, "Subscriptions DB", "PostgreSQL", "Subscriptions, personal discounts")
+    ContainerDb(recommendationsDb, "Recommendations DB", "PostgreSQL", "Movies recommendations, feed, collections")
+    ContainerDb(paymentsDb, "Payments DB", "PostgreSQL", "Transactions")
+}
+
+' ---------- Relations ----------
+
+' --- Users -> Clients ---
+Rel(user, webApp, "Uses", "HTTPS")
+Rel(user, mobileApp, "Uses", "HTTPS")
+Rel(user, tvApp, "Uses", "HTTPS")
+
+' --- Clients -> API Gateway ---
+Rel(webApp, apiGateway, "GraphQL queries", "HTTPS")
+Rel(mobileApp, apiGateway, "GraphQL queries", "HTTPS")
+Rel(tvApp, apiGateway, "GraphQL queries", "HTTPS")
+
+' --- API Gateway -> Microservices ---
+' Gateway validates the token via Auth Service, then proxies the request to the target service
+Rel(apiGateway, authService, "Token validation, registration/login", "gRPC")
+Rel(apiGateway, moviesService, "Retrieves moves metadata", "gRPC")
+Rel(apiGateway, subscriptionsService, "Checks whether a user has a subscription, displays personal discounts, retrieves different plans", "gRPC")
+Rel(apiGateway, recommendationsService, "Retrieves movies based on recommendations, feed", "gRPC")
+Rel(apiGateway, paymentsService, "Sends a request to make a payment", "gRPC")
+Rel(apiGateway, contentProviderService, "Retrieves content URLs to display content from", "gRPC")
+
+' --- Content Provider -> Content Sources ---
+Rel(contentProviderService, customContentProviderService, "Retrieves content destination URLs from CDN", "gRPC")
+
+' --- Microservices -> Databases
+Rel(customContentProviderService, contentCDN, "Retrieves content from CDN")
+Rel(authService, authDb, "Reads / writes", "SQL")
+Rel(moviesService, moviesDb, "Reads / writes", "SQL")
+Rel(subscriptionsService, subscriptionsDb, "Reads / writes", "SQL")
+Rel(recommendationsService, recommendationsDb, "Reads / writes", "SQL")
+Rel(paymentsService, paymentsDb, "Reads / writes", "SQL")
+
+' --- Microservices -> Redis Cache
+Rel(apiGateway, redis, "Rate limiting counters, GraphQL response cache", "TCP")
+Rel(authService, redis, "User sessions, refresh tokens", "TCP")
+Rel(moviesService, redis, "Movies metadata cache", "TCP")
+
+' ─── External World Interactions ───
+Rel(paymentsService, externalPaymentSystem, "Delegates payment processing", "HTTPS")
+Rel(contentProviderService, externalContentSystemA, "Retrieves content destination URLs from CDN", "HTTPS")
+Rel(contentProviderService, externalContentSystemB, "Retrieves content destination URLs from CDN", "HTTPS")
+Rel(externalRecommendationSystem, messageBroker, "Sends movies recommendations", "Async Message")
+Rel(recommendationsService, messageBroker, "Processes movies recommendations", "Async Message")
+
+@enduml

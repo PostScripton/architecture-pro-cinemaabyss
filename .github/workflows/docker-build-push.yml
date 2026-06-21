@@ -7,15 +7,16 @@ on:
     paths:
       - 'src/**'
       - '.github/workflows/docker-build-push.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - '.github/workflows/docker-build-push.yml'
   release:
     types: [published]
 
 env:
   REGISTRY: ghcr.io
-  MONOLITH_IMAGE_NAME: ${{ github.repository }}/monolith
-  MOVIES_SERVICE_IMAGE_NAME: ${{ github.repository }}/movies-service
-  EVENTS_SERVICE_IMAGE_NAME: ${{ github.repository }}/events-service
-  PROXY_SERVICE_IMAGE_NAME: ${{ github.repository }}/proxy-service
 
 jobs:
   build-and-push:
@@ -23,6 +24,22 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      matrix:
+        include:
+          - service: monolith
+            context: ./src/monolith
+            image: ${{ github.repository }}/monolith
+          - service: movies-service
+            context: ./src/microservices/movies
+            image: ${{ github.repository }}/movies-service
+          - service: proxy-service
+            context: ./src/microservices/proxy
+            image: ${{ github.repository }}/proxy-service
+          - service: events-service
+            context: ./src/microservices/events
+            image: ${{ github.repository }}/events-service
 
     steps:
       - name: Checkout repository
@@ -38,11 +55,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Monolith
-        id: meta-monolith
+      - name: Extract metadata (tags, labels) for ${{ matrix.service }}
+        id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ env.MONOLITH_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ matrix.image }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -50,36 +67,13 @@ jobs:
             type=ref,event=branch
             latest
 
-      - name: Build and push Monolith Docker image
+      - name: Build and push ${{ matrix.service }} Docker image
         uses: docker/build-push-action@v4
         with:
-          context: ./src/monolith
+          context: ${{ matrix.context }}
           push: true
-          tags: ${{ steps.meta-monolith.outputs.tags }}
-          labels: ${{ steps.meta-monolith.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Extract metadata (tags, labels) for Movies Service
-        id: meta-movies
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.MOVIES_SERVICE_IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
-            type=ref,event=branch
-            latest
-
-      - name: Build and push Movies Service Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: ./src/microservices/movies
-          push: true
-          tags: ${{ steps.meta-movies.outputs.tags }}
-          labels: ${{ steps.meta-movies.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      
